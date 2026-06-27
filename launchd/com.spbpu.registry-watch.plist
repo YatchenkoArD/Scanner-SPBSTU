@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Ежедневный запуск проверки источников перечня (macOS launchd).
+  Установка:
+    cp launchd/com.spbpu.registry-watch.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.spbpu.registry-watch.plist
+  Проверка:    launchctl list | grep registry-watch
+  Запустить вручную:  launchctl start com.spbpu.registry-watch
+  Удалить:     launchctl unload ~/Library/LaunchAgents/com.spbpu.registry-watch.plist
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.spbpu.registry-watch</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/artemy/Desktop/практ/registry_merger/daily_watch.sh</string>
+    </array>
+
+    <!-- Каждый день в 09:00 -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key><integer>9</integer>
+        <key>Minute</key><integer>0</integer>
+    </dict>
+
+    <!-- Если на 09:00 Mac спал — запустить при ближайшем пробуждении. -->
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/artemy/Desktop/практ/registry_merger/logs/launchd.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/artemy/Desktop/практ/registry_merger/logs/launchd.err.log</string>
+</dict>
+</plist>

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Еженедельный полный обход сайтов СПбПУ (macOS launchd).
+  Запуск: каждое воскресенье в 02:00 (Weekday 0). Полный проход — часы.
+  Установка:
+    cp launchd/com.spbpu.registry-scan-weekly.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.spbpu.registry-scan-weekly.plist
+  Запустить вручную:  launchctl start com.spbpu.registry-scan-weekly
+  Удалить:     launchctl unload ~/Library/LaunchAgents/com.spbpu.registry-scan-weekly.plist
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.spbpu.registry-scan-weekly</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/artemy/Desktop/практ/registry_merger/weekly_scan.sh</string>
+    </array>
+
+    <!-- Каждое воскресенье (Weekday 0) в 02:00 -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Weekday</key><integer>0</integer>
+        <key>Hour</key><integer>2</integer>
+        <key>Minute</key><integer>0</integer>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <false/>
+
+    <!-- Понижаем приоритет: длительный обход не мешает работе. -->
+    <key>Nice</key>
+    <integer>5</integer>
+    <key>ProcessType</key>
+    <string>Background</string>
+
+    <key>StandardOutPath</key>
+    <string>/Users/artemy/Desktop/практ/registry_merger/logs/launchd.scan.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/artemy/Desktop/практ/registry_merger/logs/launchd.scan.err.log</string>
+</dict>
+</plist>
