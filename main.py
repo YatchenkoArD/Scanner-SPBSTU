@@ -25,6 +25,7 @@ from config import AppConfig, load_config
 from exporters import export_all
 from loaders import get_loader
 from notice import write_notice
+from scanner.matcher import classify_kind, normalize as _normalize_name
 from transformers import (
     check_quality,
     clean_dataframe,
@@ -69,6 +70,30 @@ def collect_sources(cfg: AppConfig) -> List[pd.DataFrame]:
     return frames
 
 
+def drop_person_rows(merged, categories, log) -> "pd.DataFrame":
+    """Удалить строки-ФИЗЛИЦА в указанных категориях (по подстроке).
+
+    Организации этих категорий и записи прочих категорий (иностранные агенты,
+    в т.ч. физлица-иноагенты) остаются. Тип записи (физлицо/организация)
+    определяется эвристикой из scanner.matcher.classify_kind.
+    """
+    if not categories or "category" not in merged.columns or "full_name" not in merged.columns:
+        return merged
+    before = len(merged)
+    cats = [c.lower() for c in categories]
+    cat_l = merged["category"].astype(str).str.lower()
+    in_cat = cat_l.apply(lambda c: any(s in c for s in cats))
+    is_person = merged["full_name"].apply(
+        lambda n: classify_kind(_normalize_name(str(n)), str(n)) == "person"
+    )
+    result = merged[~(in_cat & is_person)].reset_index(drop=True)
+    log.info(
+        "Исключено физлиц из категорий %s: %d (осталось %d)",
+        categories, before - len(result), len(result),
+    )
+    return result
+
+
 def run(config_path: str) -> int:
     """Выполнить полный пайплайн. Возвращает код выхода процесса."""
     cfg = load_config(config_path)
@@ -86,6 +111,12 @@ def run(config_path: str) -> int:
 
     # 4. Нормализация значений.
     merged = normalize_dataframe(merged, cfg.normalization)
+
+    # 4b. Исключаем ФИЗЛИЦ из категорий-«шумелок» (террористы/экстремисты):
+    #     на сайтах они дают только ложные срабатывания по однофамильцам.
+    #     Делаем это ДО дедупликации — если человек есть и в реестре иноагентов,
+    #     его запись-иноагент уцелеет (категория «Иностранный агент» не в списке).
+    merged = drop_person_rows(merged, cfg.quality.drop_person_categories, log)
 
     # 5. Проверка качества ДО дедупликации: убираем пустые и записи со
     #    «стоп-полем» (напр. с заполненной датой исключения из реестра),
