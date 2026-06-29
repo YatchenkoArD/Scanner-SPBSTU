@@ -1,0 +1,53 @@
+# =============================================================================
+# ДЕМО-конфиг скринера: быстрый прогон для показа заказчику (~1-2 минуты).
+# Один институтский сайт, небольшое число страниц — гарантированно показывает
+# реальную находку (ссылка на запрещённую Meta/Facebook в футере).
+#   python scan.py --config scan_demo.yaml
+# Полный обход всего Политеха — в scan_config.yaml (это многочасовой batch).
+# =============================================================================
+
+matching:
+  registry_csv: "output/registry_merged.csv"
+  name_column_index: 1
+  category_column_index: 2
+  min_pattern_length: 6
+  # Физлица-террористы/экстремисты исключены (дают ложные тёзки).
+  drop:
+    - kind: person
+      category_contains: ["террорист", "экстремист"]
+  # Запрещённые/ограниченные бренды в разных написаниях (лат./кир.).
+  aliases:
+    - entity: "Meta Platforms Inc. (Instagram/Facebook/Threads) — экстремистская, запрещена в РФ"
+      category: "Экстремистская организация (Meta)"
+      confidence: "высокая"
+      variants: ["Instagram","Инстаграм","instagram.com","Facebook","Фейсбук","facebook.com","Threads","Meta Platforms","Мета Платформс"]
+    - entity: "Twitter / X — заблокирована в РФ (проверить)"
+      category: "Соцсеть, ограниченная в РФ (на проверку)"
+      confidence: "средняя"
+      variants: ["Twitter","Твиттер","twitter.com","x.com"]
+    - entity: "LinkedIn — заблокирована в РФ (проверить)"
+      category: "Соцсеть, ограниченная в РФ (на проверку)"
+      confidence: "средняя"
+      variants: ["LinkedIn","Линкедин","linkedin.com"]
+
+scan:
+  mode: single                       # один сайт (BFS по ссылкам)
+  start_url: "https://ie.spbstu.ru/en/"
+  same_host_only: true
+  max_pages: 15                      # коротко — для демонстрации
+  max_depth: 1
+  delay_seconds: 0.3
+  respect_robots: true
+  verify_ssl: false
+  timeout: 25
+  retries: 2
+  user_agent: "SPbPU-Compliance-Scanner/1.0 (demo)"
+
+report:
+  directory: "output"
+  basename: "scan_demo"
+  state_file: "output/scan_demo_state.txt"
+
+logging:
+  directory: "logs"
+  level: "INFO"

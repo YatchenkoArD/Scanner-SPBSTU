@@ -159,18 +159,6 @@ class SiteCrawler:
     def _same_site(self, url: str) -> bool:
         return (not self.same_host_only) or urlparse(url).netloc == self.host
 
-    @staticmethod
-    def _extract(html: str) -> tuple[str, str, List[str]]:
-        """Вернуть (title, видимый_текст, список_ссылок) из HTML."""
-        soup = BeautifulSoup(html, "lxml")
-        # Удаляем неинформативные узлы.
-        for tag in soup(["script", "style", "noscript", "template"]):
-            tag.decompose()
-        title = soup.title.get_text(strip=True) if soup.title else ""
-        text = soup.get_text(separator=" ")
-        links = [a["href"] for a in soup.find_all("a", href=True)]
-        return title, text, links
-
     def crawl(self) -> Iterator[Page]:
         """Генератор страниц сайта (с учётом лимитов и robots.txt)."""
         visited: Set[str] = set()
@@ -201,7 +189,9 @@ class SiteCrawler:
                 continue
 
             resp.encoding = resp.apparent_encoding or resp.encoding
-            title, text, links = self._extract(resp.text)
+            # Единый разбор (как в structure-режиме): текст + href/alt ссылок,
+            # чтобы ловить соцсети-иконки (напр. ссылку на facebook.com).
+            title, text, links = extract_visible(resp.text)
             count += 1
             log.info("[%d/%d] %s", count, self.max_pages, url)
             yield Page(url=url, title=title, text=text)
