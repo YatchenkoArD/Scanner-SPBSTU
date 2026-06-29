@@ -4,7 +4,8 @@
 # Запускается планировщиком (launchd / cron) раз в сутки.
 # Код возврата watch_sources.py: 0 — всё актуально; 1 — есть изменения/ошибки.
 # =============================================================================
-PROJECT="/Users/artemy/Desktop/практ/registry_merger"
+# Каталог проекта определяется автоматически (где лежит сам скрипт) — переносимо.
+PROJECT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$PROJECT" || exit 2
 # shellcheck disable=SC1091
 source .venv/bin/activate

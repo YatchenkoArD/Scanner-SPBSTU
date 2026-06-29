@@ -16,7 +16,7 @@
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>/Users/artemy/Desktop/практ/registry_merger/daily_watch.sh</string>
+        <string>__PROJECT_DIR__/daily_watch.sh</string>
     </array>
 
     <!-- Каждый день в 09:00 -->
@@ -31,8 +31,8 @@
     <false/>
 
     <key>StandardOutPath</key>
-    <string>/Users/artemy/Desktop/практ/registry_merger/logs/launchd.out.log</string>
+    <string>__PROJECT_DIR__/logs/launchd.out.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/artemy/Desktop/практ/registry_merger/logs/launchd.err.log</string>
+    <string>__PROJECT_DIR__/logs/launchd.err.log</string>
 </dict>
 </plist>

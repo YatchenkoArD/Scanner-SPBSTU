@@ -70,6 +70,9 @@ class QualityConfig:
     # (например, заглушки «Организация исключена ...»).
     drop_if_matches: Dict[str, str] = field(default_factory=dict)
     patterns: Dict[str, str] = field(default_factory=dict)
+    # HEALTH-CHECK: если итоговых записей меньше — экспорт отменяется (вероятно,
+    # сломался парсер источника), прежние выходные файлы НЕ перезаписываются.
+    min_total_rows: int = 0
 
 
 @dataclass

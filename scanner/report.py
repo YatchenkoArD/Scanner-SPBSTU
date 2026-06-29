@@ -8,6 +8,7 @@ from typing import List
 
 import pandas as pd
 
+from notice import full_notice
 from utils.logger import get_logger
 
 log = get_logger()
@@ -82,6 +83,10 @@ def write_report(
     with pd.ExcelWriter(xlsx_path, engine="openpyxl") as writer:
         df.to_excel(writer, index=False, sheet_name="matches")
         _style_worksheet(writer.sheets["matches"], df)
+        # Отдельный лист с правовой оговоркой и происхождением данных.
+        info = pd.DataFrame({"Правовая оговорка / источники": full_notice().splitlines()})
+        info.to_excel(writer, index=False, sheet_name="Инфо")
+        writer.sheets["Инфо"].column_dimensions["A"].width = 100
     created.append(xlsx_path)
 
     log.info("Отчёт сохранён: %s (совпадений: %d)", basename, len(findings))

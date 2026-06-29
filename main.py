@@ -24,6 +24,7 @@ from tqdm import tqdm
 from config import AppConfig, load_config
 from exporters import export_all
 from loaders import get_loader
+from notice import write_notice
 from transformers import (
     check_quality,
     clean_dataframe,
@@ -49,6 +50,17 @@ def collect_sources(cfg: AppConfig) -> List[pd.DataFrame]:
             loader = get_loader(source)
             raw = loader.load()
             cleaned = clean_dataframe(raw, source)
+            # HEALTH-CHECK источника: подозрительно мало записей обычно означает
+            # сломанный парсер (сайт сменил вёрстку). Такие данные НЕ берём,
+            # чтобы не «разбавить» перечень мусором.
+            min_rows = int(source.options.get("min_rows", 0))
+            if len(cleaned) < min_rows:
+                log.error(
+                    "[%s] ПРОВАЛ health-check: %d записей < ожидаемого минимума %d "
+                    "— возможно сломался парсер, источник ИСКЛЮЧЁН",
+                    source.name, len(cleaned), min_rows,
+                )
+                continue
             frames.append(cleaned)
             log.info("[%s] успешно: %d строк", source.name, len(cleaned))
         except Exception:  # noqa: BLE001 - устойчивость к сбоям источников
@@ -86,9 +98,24 @@ def run(config_path: str) -> int:
     report.total_rows = len(merged)
     log.info("\n%s", report.as_text())
 
-    # 7. Упорядочивание колонок и экспорт.
+    # 7. ГЛОБАЛЬНЫЙ health-check: если итоговых записей подозрительно мало,
+    #    НЕ перезаписываем прежние выходные файлы (вероятно, отвалился крупный
+    #    источник или сломался парсер) — лучше сохранить старый валидный перечень.
+    if len(merged) < cfg.quality.min_total_rows:
+        log.error(
+            "ПРОВАЛ глобального health-check: итоговых записей %d < минимума %d. "
+            "Экспорт ОТМЕНЁН, прежние файлы сохранены. Проверьте источники.",
+            len(merged), cfg.quality.min_total_rows,
+        )
+        return 2
+
+    # 8. Упорядочивание колонок и экспорт.
     merged = finalize_columns(merged, cfg.merge)
     created = export_all(merged, cfg.output)
+
+    # 9. Правовая оговорка + происхождение данных рядом с результатами.
+    notice_path = write_notice(cfg.output.directory)
+    log.info("Правовая оговорка: %s", notice_path)
 
     log.info("Готово. Создано файлов: %d", len(created))
     for path in created:

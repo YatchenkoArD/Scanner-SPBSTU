@@ -16,7 +16,7 @@
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>/Users/artemy/Desktop/практ/registry_merger/weekly_scan.sh</string>
+        <string>__PROJECT_DIR__/weekly_scan.sh</string>
     </array>
 
     <!-- Каждое воскресенье (Weekday 0) в 02:00 -->
@@ -37,8 +37,8 @@
     <string>Background</string>
 
     <key>StandardOutPath</key>
-    <string>/Users/artemy/Desktop/практ/registry_merger/logs/launchd.scan.out.log</string>
+    <string>__PROJECT_DIR__/logs/launchd.scan.out.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/artemy/Desktop/практ/registry_merger/logs/launchd.scan.err.log</string>
+    <string>__PROJECT_DIR__/logs/launchd.scan.err.log</string>
 </dict>
 </plist>
