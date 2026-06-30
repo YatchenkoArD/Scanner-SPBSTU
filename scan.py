@@ -43,7 +43,7 @@ from scanner.matcher import (
     normalize,
     patterns_from_aliases,
 )
-from scanner.report import Finding, extract_context, write_report
+from scanner.report import Finding, extract_context, write_findings
 from utils.logger import get_logger, setup_logger
 
 log = get_logger()
@@ -177,6 +177,9 @@ def run(config_path: str) -> int:
     flush_every = scfg.get("flush_every", 200)
     state_path = Path(rcfg.get("state_file", "output/scan_state.txt"))
     state_path.parent.mkdir(parents=True, exist_ok=True)
+    # Куда писать находки: та же БД, что и перечень; таблица — db_table.
+    db_url = mcfg["registry_db"]["url"]
+    findings_table = rcfg.get("db_table", "scan_findings")
 
     robots = RobotsCache(http_options, scfg.get("respect_robots", True))
     done = _load_state(state_path, scfg.get("resume", True))
@@ -252,7 +255,7 @@ def run(config_path: str) -> int:
                 scanned += 1
                 if scanned % flush_every == 0:
                     state_fh.flush()
-                    write_report(findings, rcfg["directory"], rcfg["basename"])
+                    write_findings(findings, db_url, findings_table)
                 time.sleep(delay)
 
             # 2b. Хосты без sitemap — BFS-обход (в пределах оставшегося лимита).
@@ -295,8 +298,8 @@ def run(config_path: str) -> int:
     finally:
         state_fh.close()
 
-    # 3. Итоговый отчёт + сводка.
-    created = write_report(findings, rcfg["directory"], rcfg["basename"])
+    # 3. Итоговая выгрузка находок в БД + сводка.
+    write_findings(findings, db_url, findings_table)
     by_conf: Dict[str, int] = {}
     for f in findings:
         by_conf[f.confidence] = by_conf.get(f.confidence, 0) + 1
@@ -306,8 +309,7 @@ def run(config_path: str) -> int:
     log.info("Уникальных сущностей:     %d", len({f.entity for f in findings}))
     for conf, cnt in sorted(by_conf.items()):
         log.info("   достоверность '%s': %d", conf, cnt)
-    for path in created:
-        log.info("   -> %s", path)
+    log.info("Находки в таблице БД: %s", findings_table)
     return 0
 
 

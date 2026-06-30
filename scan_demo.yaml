@@ -52,8 +52,7 @@ scan:
   user_agent: "SPbPU-Compliance-Scanner/1.0 (demo)"
 
 report:
-  directory: "output"
-  basename: "scan_demo"
+  db_table: "scan_findings_demo"        # таблица БД с находками демо-скана
   state_file: "output/scan_demo_state.txt"
 
 logging:

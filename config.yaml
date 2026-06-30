@@ -305,9 +305,8 @@ scan:
   same_host_only: true
 
 report:
-  directory: "output"
-  basename: "scan_spbstu"
-  state_file: "output/scan_state.txt"
+  db_table: "scan_findings"             # таблица БД с находками скрининга
+  state_file: "output/scan_state.txt"   # служебный файл прогресса (для resume)
 
 # ------------------------------------------------------------------ Логи (общие)
 logging:
