@@ -282,3 +282,42 @@ def discover_unit_hosts(structure_urls: List[str], domain_suffix: str = "spbstu.
     result = sorted(hosts)
     log.info("Обнаружено хостов в структуре (%s): %d", domain_suffix, len(result))
     return result
+
+
+def load_hosts_file(path: str, domain_suffix: Optional[str] = None) -> List[str]:
+    """Прочитать список целевых доменов из файла (.xls/.xlsx/.csv/.txt).
+
+    Берётся колонка «Домен» (или первая). Адреса приводятся к чистому хосту
+    (без схемы/пути), приводятся к нижнему регистру и дедуплицируются; при
+    заданном ``domain_suffix`` оставляются только хосты этого домена.
+    """
+    import pandas as pd
+
+    low = str(path).lower()
+    if low.endswith((".xls", ".xlsx")):
+        df = pd.read_excel(path, dtype=str)
+        col = next((c for c in df.columns
+                    if any(k in str(c).lower() for k in ("домен", "domain", "host"))),
+                   df.columns[0])
+        raw = df[col].dropna().astype(str).tolist()
+    elif low.endswith(".csv"):
+        df = pd.read_csv(path, dtype=str)
+        col = next((c for c in df.columns
+                    if any(k in str(c).lower() for k in ("домен", "domain", "host"))),
+                   df.columns[0])
+        raw = df[col].dropna().astype(str).tolist()
+    else:  # .txt — один хост на строку
+        raw = Path(path).read_text(encoding="utf-8").splitlines()
+
+    result, seen = [], set()
+    for item in raw:
+        host = item.strip().lower()
+        host = re.sub(r"^https?://", "", host).split("/")[0].split("?")[0]
+        if not host or host in seen:
+            continue
+        if domain_suffix and not (host == domain_suffix or host.endswith("." + domain_suffix)):
+            continue
+        seen.add(host)
+        result.append(host)
+    log.info("Загружено целевых доменов из файла %s: %d", path, len(result))
+    return result

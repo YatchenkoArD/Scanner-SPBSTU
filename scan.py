@@ -34,6 +34,7 @@ from scanner.crawler import (
     collect_sitemap_urls,
     discover_unit_hosts,
     fetch_page,
+    load_hosts_file,
 )
 from scanner.matcher import (
     FuzzyMatcher,
@@ -43,7 +44,9 @@ from scanner.matcher import (
     patterns_from_aliases,
 )
 from scanner.report import Finding, extract_context, write_report
-from utils.logger import setup_logger
+from utils.logger import get_logger, setup_logger
+
+log = get_logger()
 
 
 def _load_registry(cfg: Dict) -> List[Tuple[str, str]]:
@@ -71,11 +74,20 @@ def _load_registry(cfg: Dict) -> List[Tuple[str, str]]:
 
 
 def _resolve_hosts(scfg: Dict, http_options: Dict) -> List[str]:
-    """Определить список хостов для обхода (структура + основной домен)."""
+    """Определить список хостов для обхода.
+
+    Приоритет — явный файл целевых доменов (``hosts_file`` от руководителя);
+    если он не задан/не найден — авто-обнаружение по странице структуры.
+    """
     suffix = scfg.get("domain_suffix", "spbstu.ru")
-    hosts = discover_unit_hosts(
-        scfg.get("structure_urls", []), suffix, http_options
-    )
+    hosts_file = scfg.get("hosts_file")
+    if hosts_file and Path(hosts_file).exists():
+        hosts = load_hosts_file(hosts_file, suffix)
+    else:
+        if hosts_file:
+            log.warning("Файл доменов '%s' не найден — авто-обнаружение по структуре",
+                        hosts_file)
+        hosts = discover_unit_hosts(scfg.get("structure_urls", []), suffix, http_options)
     main = f"www.{suffix}"
     ordered = [main] + [h for h in hosts if h != main]
     for extra in scfg.get("extra_hosts", []):

@@ -282,7 +282,10 @@ matching:
 
 scan:
   mode: structure             # structure — вся структура СПбПУ; single — один хост
-  structure_urls: ["https://www.spbstu.ru/structure/"]
+  # Авторитетный список целевых доменов от руководителя (217 шт.). Имеет
+  # приоритет; если файла нет — авто-обнаружение по structure_urls.
+  hosts_file: "домены.xls"
+  structure_urls: ["https://www.spbstu.ru/structure/"]  # запасной способ
   domain_suffix: "spbstu.ru"
   extra_hosts: []
   use_sitemaps: true

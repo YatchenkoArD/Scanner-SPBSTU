@@ -12,3 +12,4 @@ python-dateutil>=2.8
 pyahocorasick>=2.0   # быстрый многошаблонный поиск (Aho-Corasick); опционально
 psycopg2-binary>=2.9 # драйвер PostgreSQL (выгрузка перечня в БД)
 rapidfuzz>=3.0       # нечёткий поиск (этап 4, search.md)
+xlrd>=2.0.1          # чтение списка целевых доменов из .xls
