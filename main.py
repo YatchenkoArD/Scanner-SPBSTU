@@ -22,7 +22,7 @@ import pandas as pd
 from tqdm import tqdm
 
 from config import AppConfig, load_config
-from exporters import export_all
+from exporters.postgres_exporter import export_to_db
 from loaders import get_loader
 from notice import write_notice
 from scanner.matcher import classify_kind, normalize as _normalize_name
@@ -130,27 +130,26 @@ def run(config_path: str) -> int:
     log.info("\n%s", report.as_text())
 
     # 7. ГЛОБАЛЬНЫЙ health-check: если итоговых записей подозрительно мало,
-    #    НЕ перезаписываем прежние выходные файлы (вероятно, отвалился крупный
+    #    НЕ перезаписываем прежние данные в БД (вероятно, отвалился крупный
     #    источник или сломался парсер) — лучше сохранить старый валидный перечень.
     if len(merged) < cfg.quality.min_total_rows:
         log.error(
             "ПРОВАЛ глобального health-check: итоговых записей %d < минимума %d. "
-            "Экспорт ОТМЕНЁН, прежние файлы сохранены. Проверьте источники.",
+            "Экспорт ОТМЕНЁН, прежние данные в БД сохранены. Проверьте источники.",
             len(merged), cfg.quality.min_total_rows,
         )
         return 2
 
-    # 8. Упорядочивание колонок и экспорт.
-    merged = finalize_columns(merged, cfg.merge)
-    created = export_all(merged, cfg.output)
+    # 8. Выгрузка ТОЛЬКО в базу данных: 3 таблицы (физлица / организации / все).
+    tables = export_to_db(merged, cfg.database)
 
     # 9. Правовая оговорка + происхождение данных рядом с результатами.
-    notice_path = write_notice(cfg.output.directory)
+    notice_path = write_notice(cfg.database.directory)
     log.info("Правовая оговорка: %s", notice_path)
 
-    log.info("Готово. Создано файлов: %d", len(created))
-    for path in created:
-        log.info("   -> %s", path)
+    log.info("Готово. Записано таблиц: %d", len(tables))
+    for t in tables:
+        log.info("   -> %s", t)
     return 0
 
 

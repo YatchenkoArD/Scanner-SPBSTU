@@ -7,14 +7,22 @@
 # =============================================================================
 
 matching:
-  registry_csv: "output/registry_merged.csv"
-  name_column_index: 1
-  category_column_index: 2
+  registry_db:
+    url: "postgresql+psycopg2://localhost/registry"
+    table: "registry_all"
+    name_column: "naimenovanie_fio"
+    category_column: "kategoriya"
   min_pattern_length: 6
-  # Физлица-террористы/экстремисты исключены (дают ложные тёзки).
+  # Физлица-террористы/экстремисты исключены из скрининга (дают ложные тёзки).
   drop:
     - kind: person
       category_contains: ["террорист", "экстремист"]
+  # Этап 4 (search.md): в демо нечёткий поиск включён (показать опечатки/варианты).
+  fuzzy:
+    enabled: true
+    threshold: 90
+    min_len: 8
+    max_words: 5
   # Запрещённые/ограниченные бренды в разных написаниях (лат./кир.).
   aliases:
     - entity: "Meta Platforms Inc. (Instagram/Facebook/Threads) — экстремистская, запрещена в РФ"

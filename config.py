@@ -90,6 +90,17 @@ class OutputConfig:
 
 
 @dataclass
+class DatabaseConfig:
+    """Параметры выгрузки в базу данных (PostgreSQL)."""
+
+    url: str = "postgresql+psycopg2://localhost/registry"
+    table_all: str = "registry_all"          # совмещённый список
+    table_persons: str = "registry_persons"  # только физлица
+    table_orgs: str = "registry_orgs"        # только организации
+    directory: str = "output"                # для DISCLAIMER.txt
+
+
+@dataclass
 class LoggingConfig:
     """Параметры логирования."""
 
@@ -106,6 +117,7 @@ class AppConfig:
     merge: MergeConfig
     quality: QualityConfig
     output: OutputConfig
+    database: DatabaseConfig
     logging: LoggingConfig
 
 
@@ -159,5 +171,6 @@ def load_config(path: str | Path) -> AppConfig:
         merge=MergeConfig(**(raw.get("merge") or {})),
         quality=QualityConfig(**(raw.get("quality") or {})),
         output=OutputConfig(**(raw.get("output") or {})),
+        database=DatabaseConfig(**(raw.get("database") or {})),
         logging=LoggingConfig(**(raw.get("logging") or {})),
     )

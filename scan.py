@@ -42,7 +42,23 @@ from utils.logger import setup_logger
 
 
 def _load_registry(cfg: Dict) -> List[Tuple[str, str]]:
-    """Считать (имя, категория) из CSV перечня."""
+    """Считать (имя, категория) перечня из БД (PostgreSQL) или CSV.
+
+    Приоритет — база данных (matching.registry_db). Для совместимости
+    поддерживается и CSV (matching.registry_csv).
+    """
+    db = cfg.get("registry_db")
+    if db:
+        from sqlalchemy import create_engine
+        engine = create_engine(db["url"])
+        try:
+            df = pd.read_sql(f'SELECT * FROM {db["table"]}', engine).fillna("")
+        finally:
+            engine.dispose()
+        name = db.get("name_column", "naimenovanie_fio")
+        category = db.get("category_column", "kategoriya")
+        return list(zip(df[name].astype(str), df[category].astype(str)))
+    # запасной путь — CSV
     df = pd.read_csv(cfg["registry_csv"], dtype=str).fillna("")
     name = df.columns[cfg.get("name_column_index", 1)]
     category = df.columns[cfg.get("category_column_index", 2)]
@@ -119,6 +135,19 @@ def run(config_path: str) -> int:
     patterns += patterns_from_aliases(mcfg.get("aliases", []))
     matcher = NameMatcher(patterns)
 
+    # Этап 4 (search.md): нечёткий поиск (опционально, для опечаток/вариантов).
+    fcfg = mcfg.get("fuzzy") or {}
+    fuzzy = None
+    if fcfg.get("enabled"):
+        from scanner.fuzzy import FuzzyMatcher
+        fuzzy = FuzzyMatcher(
+            patterns,
+            threshold=fcfg.get("threshold", 90),
+            min_len=fcfg.get("min_len", 8),
+            max_words=fcfg.get("max_words", 5),
+        )
+        log.info("Нечёткий поиск включён (порог %s)", fcfg.get("threshold", 90))
+
     scfg = cfg["scan"]
     rcfg = cfg["report"]
     http_options = {
@@ -142,7 +171,10 @@ def run(config_path: str) -> int:
         """Найти совпадения на странице и добавить в отчёт."""
         norm_text = normalize(page.text)
         seen: Set[str] = set()
+        exact_norms: Set[str] = set()
+        # Этап 3: точный поиск (Aho–Corasick).
         for m in matcher.find(norm_text):
+            exact_norms.add(m.pattern.norm)
             # Одну сущность на странице показываем один раз, даже если совпало
             # несколько её написаний (напр. «Facebook» и «facebook.com»).
             if m.pattern.original in seen:
@@ -158,6 +190,22 @@ def run(config_path: str) -> int:
                     context=extract_context(page.text, m.pattern.norm),
                 )
             )
+        # Этап 4: нечёткий поиск (опечатки/варианты), если включён.
+        if fuzzy is not None:
+            for fm in fuzzy.find(norm_text, exact_norms):
+                if fm.payload.original in seen:
+                    continue
+                seen.add(fm.payload.original)
+                findings.append(
+                    Finding(
+                        entity=fm.payload.original,
+                        category=fm.payload.category,
+                        confidence=f"нечёткое совпадение ({fm.score}%): «{fm.fragment}»",
+                        page_url=page.url,
+                        page_title=page.title,
+                        context=extract_context(page.text, fm.fragment),
+                    )
+                )
 
     # 2. Определяем источник URL: структура или одиночный сайт.
     mode = scfg.get("mode", "single")

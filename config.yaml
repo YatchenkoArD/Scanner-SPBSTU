@@ -156,6 +156,43 @@ sources:
       "field_12_dt": birth_date   # Дата рождения
       "field_14_s": address       # Адрес (место нахождения)
 
+  # --------------------------------------------------------------------------
+  # 5. МИНЮСТ — перечень иностранных и международных организаций, деятельность
+  #    которых признана НЕЖЕЛАТЕЛЬНОЙ на территории РФ (JSON-API reestrs.minjust).
+  #    Реестр id c2d1692e-... ; ~361 организация. Поля — из /info.
+  # --------------------------------------------------------------------------
+  - name: "Минюст: нежелательные организации"
+    type: api
+    path: "https://reestrs.minjust.gov.ru/rest/registry/c2d1692e-a9f6-5a79-13ee-5da5b42980df/values"
+    options:
+      verify_ssl: false
+      timeout: 60
+      retries: 3
+      method: POST
+      headers:
+        Accept: "application/json"
+        Content-Type: "application/json;charset=UTF-8"
+        Referer: "https://minjust.gov.ru/"
+      body:
+        search: ""
+        facets: {}
+        sort: []
+      records_path: "values"
+      paginate:
+        offset_field: "offset"
+        limit_field: "limit"
+        page_size: 200
+        total_path: "size"
+      min_rows: 100             # health-check: меньше — парсер сломан
+      constants:
+        category: "Нежелательная организация"
+        subject_type: "Организация"
+    mapping:
+      "field_5_s": full_name      # Наименование организации
+      "field_2_dt": reg_date      # Дата включения в перечень
+      "field_7_dt": exclusion_date  # Дата ИСКЛЮЧЕНИЯ из перечня (при наличии)
+      "field_3_s": basis          # Номер распоряжения Минюста
+
 # --------------------------------------------------------- Правила нормализации
 normalization:
   date_fields: [birth_date, reg_date, exclusion_date]  # даты -> YYYY-MM-DD
@@ -192,21 +229,23 @@ quality:
   # Удаляем строки-заглушки об исключённых организациях.
   drop_if_matches:
     full_name: "исключен[ао]\\b"
-  # Физлица-террористы/экстремисты не нужны (дают только ложные тёзки на сайтах);
-  # организации этих категорий и физлица-иноагенты остаются.
-  drop_person_categories: ["террорист", "экстремист"]
+  # ПРИМЕЧАНИЕ: физлица-террористы/экстремисты теперь СОХРАНЯЮТСЯ в БД
+  # (для отдельной таблицы физлиц). Из скрининга сайтов они исключаются на
+  # стороне сканера (scan_config.yaml → matching.drop), чтобы не давать шум.
   patterns: {}
   # Глобальный health-check: меньше записей в итоге — экспорт отменяется,
-  # прежние выходные файлы не перезаписываются (вероятно, отвалился источник).
-  # После исключения физлиц итог ~2 000 (организации + иностранные агенты).
-  min_total_rows: 1000
+  # прежние данные в БД не перезаписываются (вероятно, отвалился источник).
+  min_total_rows: 15000
 
-# ------------------------------------------------------------------ Экспорт
-output:
-  directory: "output"
-  basename: "registry_merged"
-  formats: [xlsx, csv, sqlite]
-  sqlite_table: "registry"
+# ------------------------------------------------------------------ Экспорт (БД)
+# По требованию: выгрузка ТОЛЬКО в базу данных (PostgreSQL), без CSV/XLSX.
+# Создаются три таблицы: физлица, организации и совмещённая.
+database:
+  url: "postgresql+psycopg2://localhost/registry"
+  table_all: "registry_all"          # совмещённый список
+  table_persons: "registry_persons"  # только физлица
+  table_orgs: "registry_orgs"        # только организации
+  directory: "output"                # сюда кладётся только DISCLAIMER.txt
 
 # ------------------------------------------------------------------ Логи
 logging:
