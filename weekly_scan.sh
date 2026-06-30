@@ -32,7 +32,7 @@ done
 # --- Свежий полный проход (сбрасываем состояние обхода). ---
 rm -f output/scan_state.txt
 LOG="logs/weekly_scan_${TS}.log"
-python scan.py --config scan_config.yaml >> "$LOG" 2>&1
+python scan.py --config config.yaml >> "$LOG" 2>&1
 CODE=$?
 
 # --- Уведомление с числом находок (macOS). ---

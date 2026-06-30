@@ -44,17 +44,9 @@ class MergeConfig:
     deduplicate_on: List[str] = field(default_factory=list)
     keep: str = "first"
     # Колонки, значения которых при схлопывании дублей ОБЪЕДИНЯЮТСЯ в перечень
-    # (через "; "), а не берутся от первой записи. Напр. category: одна сущность
-    # из нескольких реестров получает список всех своих категорий.
+    # (через "; "). Напр. category: сущность из нескольких реестров получает
+    # список всех своих категорий.
     combine_columns: List[str] = field(default_factory=list)
-    output_columns: List[str] = field(default_factory=list)
-    drop_columns: List[str] = field(default_factory=list)
-    # Если True — в результате остаются ТОЛЬКО output_columns (без «хвоста»).
-    strict_columns: bool = False
-    # Если задано — первой колонкой добавляется сквозная нумерация с этим заголовком.
-    add_row_number: str = ""
-    # Переименование внутренних имён колонок в человекочитаемые заголовки.
-    column_titles: Dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -69,24 +61,10 @@ class QualityConfig:
     # {колонка: regex} — удалить строки, где значение соответствует шаблону
     # (например, заглушки «Организация исключена ...»).
     drop_if_matches: Dict[str, str] = field(default_factory=dict)
-    # Категории (подстроки), в которых ФИЗЛИЦА исключаются из перечня —
-    # напр. ["террорист","экстремист"]: они дают лишь ложные тёзки на сайтах.
-    # Организации этих категорий и физлица-иноагенты остаются.
-    drop_person_categories: List[str] = field(default_factory=list)
     patterns: Dict[str, str] = field(default_factory=dict)
-    # HEALTH-CHECK: если итоговых записей меньше — экспорт отменяется (вероятно,
-    # сломался парсер источника), прежние выходные файлы НЕ перезаписываются.
+    # HEALTH-CHECK: если итоговых записей меньше — выгрузка отменяется (вероятно,
+    # сломался парсер источника), прежние данные в БД НЕ перезаписываются.
     min_total_rows: int = 0
-
-
-@dataclass
-class OutputConfig:
-    """Куда и в каких форматах сохранять результат."""
-
-    directory: str = "output"
-    basename: str = "registry_merged"
-    formats: List[str] = field(default_factory=lambda: ["xlsx", "csv"])
-    sqlite_table: str = "registry"
 
 
 @dataclass
@@ -116,7 +94,6 @@ class AppConfig:
     normalization: NormalizationConfig
     merge: MergeConfig
     quality: QualityConfig
-    output: OutputConfig
     database: DatabaseConfig
     logging: LoggingConfig
 
@@ -170,7 +147,6 @@ def load_config(path: str | Path) -> AppConfig:
         normalization=NormalizationConfig(**(raw.get("normalization") or {})),
         merge=MergeConfig(**(raw.get("merge") or {})),
         quality=QualityConfig(**(raw.get("quality") or {})),
-        output=OutputConfig(**(raw.get("output") or {})),
         database=DatabaseConfig(**(raw.get("database") or {})),
         logging=LoggingConfig(**(raw.get("logging") or {})),
     )

@@ -28,16 +28,21 @@ import pandas as pd
 import yaml
 from tqdm import tqdm
 
-from scanner.crawler import RobotsCache, SiteCrawler, fetch_page
-from scanner.discovery import discover_unit_hosts
+from scanner.crawler import (
+    RobotsCache,
+    SiteCrawler,
+    collect_sitemap_urls,
+    discover_unit_hosts,
+    fetch_page,
+)
 from scanner.matcher import (
+    FuzzyMatcher,
     NameMatcher,
     load_patterns,
     normalize,
     patterns_from_aliases,
 )
 from scanner.report import Finding, extract_context, write_report
-from scanner.sitemap import collect_sitemap_urls
 from utils.logger import setup_logger
 
 
@@ -139,7 +144,6 @@ def run(config_path: str) -> int:
     fcfg = mcfg.get("fuzzy") or {}
     fuzzy = None
     if fcfg.get("enabled"):
-        from scanner.fuzzy import FuzzyMatcher
         fuzzy = FuzzyMatcher(
             patterns,
             threshold=fcfg.get("threshold", 90),
@@ -297,7 +301,7 @@ def run(config_path: str) -> int:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Скрининг сайтов СПбПУ по перечню.")
-    parser.add_argument("--config", "-c", default="scan_config.yaml")
+    parser.add_argument("--config", "-c", default="config.yaml")
     args = parser.parse_args()
     try:
         sys.exit(run(args.config))

@@ -211,14 +211,6 @@ merge:
   # Сущность из нескольких реестров -> одна строка, но в category перечисляются
   # ВСЕ её категории (напр. «Террорист/экстремист (перечень РФМ); Иностранный агент»).
   combine_columns: [category]
-  # ИТОГОВАЯ ТАБЛИЦА — ровно 3 колонки: № п/п, наименование/ФИО, тип(категория).
-  output_columns: [full_name, category]
-  strict_columns: true                  # оставить только output_columns
-  add_row_number: "№ п/п"               # сквозная нумерация первой колонкой
-  column_titles:
-    full_name: "Полное наименование (прежнее наименование (в случае его изменения)) / ФИО «Псевдоним» (при наличии) (прежние ФИО (в случае их изменения))"
-    category: "Тип (категория)"
-  drop_columns: [num, raw]
 
 # ------------------------------------------------------- Проверка качества
 quality:
@@ -229,9 +221,9 @@ quality:
   # Удаляем строки-заглушки об исключённых организациях.
   drop_if_matches:
     full_name: "исключен[ао]\\b"
-  # ПРИМЕЧАНИЕ: физлица-террористы/экстремисты теперь СОХРАНЯЮТСЯ в БД
-  # (для отдельной таблицы физлиц). Из скрининга сайтов они исключаются на
-  # стороне сканера (scan_config.yaml → matching.drop), чтобы не давать шум.
+  # ПРИМЕЧАНИЕ: физлица-террористы/экстремисты СОХРАНЯЮТСЯ в БД (для отдельной
+  # таблицы физлиц). Из скрининга сайтов они исключаются на стороне сканера
+  # (секция matching.drop ниже), чтобы не давать шум по однофамильцам.
   patterns: {}
   # Глобальный health-check: меньше записей в итоге — экспорт отменяется,
   # прежние данные в БД не перезаписываются (вероятно, отвалился источник).
@@ -247,7 +239,74 @@ database:
   table_orgs: "registry_orgs"        # только организации
   directory: "output"                # сюда кладётся только DISCLAIMER.txt
 
-# ------------------------------------------------------------------ Логи
+# =============================================================================
+# СКРИНЕР САЙТОВ (используется scan.py). Перечень берётся из БД (выше).
+# =============================================================================
+matching:
+  # Перечень читается из БД (PostgreSQL), таблица — совмещённый список.
+  registry_db:
+    url: "postgresql+psycopg2://localhost/registry"
+    table: "registry_all"
+    name_column: "naimenovanie_fio"
+    category_column: "kategoriya"
+  min_pattern_length: 6       # короче — отбрасываем (меньше ложных срабатываний)
+
+  # Физлица-террористы/экстремисты в скрининге дают лишь ложные тёзки —
+  # исключаем (в БД они сохранены, отдельная таблица физлиц).
+  drop:
+    - kind: person
+      category_contains: ["террорист", "экстремист"]
+
+  # Этап 4 (search.md): нечёткий поиск (опечатки/варианты). Для полного обхода
+  # держим выключенным (дорого); включается для точечных проверок (scan_demo).
+  fuzzy:
+    enabled: false
+    threshold: 90
+    min_len: 8
+    max_words: 5
+
+  # Алиасы: одна запрещённая сущность в разных написаниях (латиница/кириллица).
+  aliases:
+    - entity: "Meta Platforms Inc. (Instagram/Facebook/Threads) — экстремистская, запрещена в РФ"
+      category: "Экстремистская организация (Meta)"
+      confidence: "высокая"
+      variants: ["Instagram","Инстаграм","Инстаграмм","instagram.com","Facebook","Фейсбук","Фэйсбук","facebook.com","Threads","Тредс","Meta Platforms","Мета Платформс"]
+    - entity: "Twitter / X — заблокирована в РФ (проверить уместность ссылки)"
+      category: "Соцсеть, ограниченная в РФ (на проверку)"
+      confidence: "средняя"
+      variants: ["Twitter","Твиттер","twitter.com","x.com"]
+    - entity: "LinkedIn — заблокирована в РФ (проверить уместность ссылки)"
+      category: "Соцсеть, ограниченная в РФ (на проверку)"
+      confidence: "средняя"
+      variants: ["LinkedIn","Линкедин","linkedin.com"]
+
+scan:
+  mode: structure             # structure — вся структура СПбПУ; single — один хост
+  structure_urls: ["https://www.spbstu.ru/structure/"]
+  domain_suffix: "spbstu.ru"
+  extra_hosts: []
+  use_sitemaps: true
+  crawl_fallback: true
+  max_pages_total: 0          # 0 = обойти ВСЁ (~73 000 страниц, многочасовой batch)
+  max_pages_per_host: 0
+  max_depth: 2
+  delay_seconds: 0.3
+  respect_robots: true
+  resume: true
+  flush_every: 500
+  verify_ssl: false
+  timeout: 25
+  retries: 2
+  user_agent: "SPbPU-Compliance-Scanner/1.0 (+internal registry screening)"
+  start_url: "https://www.spbstu.ru/"   # для режима single
+  same_host_only: true
+
+report:
+  directory: "output"
+  basename: "scan_spbstu"
+  state_file: "output/scan_state.txt"
+
+# ------------------------------------------------------------------ Логи (общие)
 logging:
   directory: "logs"
   level: "INFO"

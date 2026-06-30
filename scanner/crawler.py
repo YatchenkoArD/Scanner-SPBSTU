@@ -9,15 +9,17 @@
 """
 from __future__ import annotations
 
+import gzip
+import re
 import time
 from dataclasses import dataclass
-from typing import Dict, Iterator, List, Set
+from typing import Dict, Iterator, List, Optional, Set
 from urllib.parse import urljoin, urlparse
 from urllib.robotparser import RobotFileParser
 
 from bs4 import BeautifulSoup
 
-from loaders.http import DEFAULT_USER_AGENT, fetch
+from loaders import DEFAULT_USER_AGENT, fetch
 from utils.logger import get_logger
 
 log = get_logger()
@@ -204,3 +206,79 @@ class SiteCrawler:
                         queue.append((nxt, depth + 1))
 
             time.sleep(self.delay)  # вежливая пауза между запросами
+
+
+# =========================================================================== #
+#         Перечисление страниц (sitemap) и обнаружение поддоменов             #
+# =========================================================================== #
+# Извлечение <loc> без полноценного XML-парсинга (быстро и устойчиво).
+_LOC = re.compile(r"<loc>\s*([^<\s]+)\s*</loc>", re.IGNORECASE)
+
+
+def _sitemap_text(url: str, http_options: Optional[Dict]) -> str:
+    """Скачать карту сайта; при необходимости распаковать gzip."""
+    content = fetch(url, options=http_options or {}).content
+    if url.lower().endswith(".gz") or content[:2] == b"\x1f\x8b":
+        content = gzip.decompress(content)
+    return content.decode("utf-8", errors="replace")
+
+
+def iter_sitemap_urls(sitemap_url: str, http_options: Optional[Dict] = None, *,
+                      max_urls: int = 0, _depth: int = 0) -> Iterator[str]:
+    """Выдать URL страниц из карты сайта (рекурсивно по картам-индексам)."""
+    if _depth > 5:  # защита от циклов в индексах
+        return
+    try:
+        text = _sitemap_text(sitemap_url, http_options)
+    except Exception as exc:  # noqa: BLE001 - нет карты -> пустой результат
+        log.debug("Карта недоступна %s: %s", sitemap_url, str(exc)[:60])
+        return
+    locs = _LOC.findall(text)
+    count = 0
+    if "<sitemapindex" in text.lower():  # индекс: каждый <loc> — вложенная карта
+        for child in locs:
+            for url in iter_sitemap_urls(child, http_options,
+                                         max_urls=max_urls, _depth=_depth + 1):
+                yield url
+                count += 1
+                if max_urls and count >= max_urls:
+                    return
+    else:
+        for url in locs:
+            yield url
+            count += 1
+            if max_urls and count >= max_urls:
+                return
+
+
+def collect_sitemap_urls(host_url: str, http_options: Optional[Dict] = None, *,
+                         max_urls: int = 0) -> List[str]:
+    """Список URL страниц хоста по его /sitemap.xml (если есть)."""
+    sitemap_url = urljoin(host_url, "/sitemap.xml")
+    urls = list(iter_sitemap_urls(sitemap_url, http_options, max_urls=max_urls))
+    log.info("sitemap %s: страниц %d", sitemap_url, len(urls))
+    return urls
+
+
+def _host_in_scope(host: str, suffix: str) -> bool:
+    return host == suffix or host.endswith("." + suffix)
+
+
+def discover_unit_hosts(structure_urls: List[str], domain_suffix: str = "spbstu.ru",
+                        http_options: Optional[Dict] = None) -> List[str]:
+    """Собрать хосты подразделений/поддоменов из страниц официальной структуры."""
+    hosts: Set[str] = set()
+    for url in structure_urls:
+        try:
+            resp = fetch(url, options=http_options or {})
+        except Exception as exc:  # noqa: BLE001 - страница структуры недоступна
+            log.warning("Структура недоступна %s: %s", url, str(exc)[:70])
+            continue
+        soup = BeautifulSoup(resp.text, "lxml")
+        for anchor in soup.find_all("a", href=True):
+            host = urlparse(urljoin(url, anchor["href"])).netloc.lower()
+            if host and _host_in_scope(host, domain_suffix):
+                hosts.add(host)
+    result = sorted(hosts)
+    log.info("Обнаружено хостов в структуре (%s): %d", domain_suffix, len(result))
+    return result
